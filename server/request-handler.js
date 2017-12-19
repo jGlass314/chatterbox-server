@@ -20,8 +20,9 @@ var defaultCorsHeaders = {
   'access-control-max-age': 10 // Seconds.
 };
 
-var headers;
-var statusCode;
+var endpoint = {
+  '/classes/messages': 'messages'
+};
 
 var requestHandler = function(request, response) {
   // Request and Response come from node's http module.
@@ -41,26 +42,36 @@ var requestHandler = function(request, response) {
   console.log('Serving request type ' + request.method + ' for url ' + request.url);
   
   // See the note below about CORS headers.
-  headers = defaultCorsHeaders;
-  
+  var headers = defaultCorsHeaders;
+
   // Tell the client we are sending them plain text.
   //
   // You will need to change this if you are sending something
   // other than plain text, like JSON or HTML.
-  headers['Content-Type'] = 'application/json';
-
-  if (request.url.split('?')[0] !== '/classes/messages') {
-    invalidEndpointHandler(response);
-  } else if (request.method === 'POST') {
-    postHandler(request, response);
-  } else if (request.method === 'GET') {
-    getHandler(request, response);
-  } else if (request.method === 'OPTIONS') { 
-    optionsHandler(request, response);
-  } else {
-    console.log('Unhandled request:', request.method);
-  }
   
+  switch (endpoint[request.url.split('?')[0]]) {
+  case 'messages':
+    handleMessages(request, response, headers);
+    break;
+  default:
+    defaultHandler(response, headers, 404);
+  }
+};
+
+handleMessages = (request, response, headers) => {
+  switch (request.method) {
+  case 'POST':
+    postHandler(request, response, headers, 201);
+    break;
+  case 'GET':
+    getHandler(request, response, headers, 200);
+    break;
+  case 'OPTIONS':
+    defaultHandler(response, headers, 200);
+    break;
+  default:
+    defaultHandler(response, headers, 405);
+  }
 };
 
 // These headers will allow Cross-Origin Resource Sharing (CORS).
@@ -72,18 +83,23 @@ var requestHandler = function(request, response) {
 //
 // Another way to get around this restriction is to serve you chat
 // client from this domain by setting up static file serving.
-getHandler = (request, response) => {
+defaultHandler = (response, headers, statusCode) => {
+  response.writeHead(statusCode, headers);
+  response.end();
+};
+
+getHandler = (request, response, headers, statusCode) => {
   // The outgoing status.
-  statusCode = 200;
   var results;
   var options = request.url.split('?')[1];
+  console.log('get request url:', request.url);
   if (options && options.split('=')[1] === '-createdAt') {
     results = JSON.stringify({'results': messages.slice().reverse()});
     // results = JSON.stringify({'results': messages});
   } else {
     results = JSON.stringify({'results': messages});
   }
-  
+  headers['Content-Type'] = 'application/json';
   // .writeHead() writes to the request line and headers of the response,
   // which includes the status and all headers.
   response.writeHead(statusCode, headers);
@@ -98,13 +114,7 @@ getHandler = (request, response) => {
   response.end(results);
 };
 
-invalidEndpointHandler = (response) => {
-  statusCode = 404;
-  response.writeHead(statusCode, headers);
-  response.end();
-};
-
-postHandler = (request, response) => {
+postHandler = (request, response, headers, statusCode) => {
   let body = [];
   request.on('error', (err) => {
     console.error(err);
@@ -125,26 +135,10 @@ postHandler = (request, response) => {
     // You will need to change this if you are sending something
     // other than plain text, like JSON or HTML.
     headers['Content-Type'] = 'application/json';
-    var statusCode = 201;
     var results = JSON.stringify(messages);
     response.writeHead(statusCode, headers);
     response.end(results);
   });
-};
-
-optionsHandler = (request, response) => {
-  var results;
-  var options = request.url.split('?')[1];
-  if (options && options.split('=')[1] === '-createdAt') {
-    results = JSON.stringify({'results': messages.slice().reverse()});
-  } else {
-    results = JSON.stringify({'results': messages});
-  }
-
-  statusCode = 200;
-  response.writeHead(statusCode, headers);
-
-  response.end(results);
 };
 
 exports.requestHandler = requestHandler;
