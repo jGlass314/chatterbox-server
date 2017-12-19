@@ -49,12 +49,14 @@ var requestHandler = function(request, response) {
   // other than plain text, like JSON or HTML.
   headers['Content-Type'] = 'application/json';
 
-  if (request.url !== '/classes/messages') {
+  if (request.url.split('?')[0] !== '/classes/messages') {
     invalidEndpointHandler(response);
   } else if (request.method === 'POST') {
     postHandler(request, response);
   } else if (request.method === 'GET') {
-    getHandler(response);
+    getHandler(request, response);
+  } else if (request.method === 'OPTIONS') { 
+    optionsHandler(request, response);
   } else {
     console.log('Unhandled request:', request.method);
   }
@@ -70,11 +72,18 @@ var requestHandler = function(request, response) {
 //
 // Another way to get around this restriction is to serve you chat
 // client from this domain by setting up static file serving.
-getHandler = (response) => {
+getHandler = (request, response) => {
   // The outgoing status.
   statusCode = 200;
-  var results = JSON.stringify({'results': messages});
-
+  var results;
+  var options = request.url.split('?')[1];
+  if (options && options.split('=')[1] === '-createdAt') {
+    results = JSON.stringify({'results': messages.slice().reverse()});
+    // results = JSON.stringify({'results': messages});
+  } else {
+    results = JSON.stringify({'results': messages});
+  }
+  
   // .writeHead() writes to the request line and headers of the response,
   // which includes the status and all headers.
   response.writeHead(statusCode, headers);
@@ -121,7 +130,21 @@ postHandler = (request, response) => {
     response.writeHead(statusCode, headers);
     response.end(results);
   });
-  
+};
+
+optionsHandler = (request, response) => {
+  var results;
+  var options = request.url.split('?')[1];
+  if (options && options.split('=')[1] === '-createdAt') {
+    results = JSON.stringify({'results': messages.slice().reverse()});
+  } else {
+    results = JSON.stringify({'results': messages});
+  }
+
+  statusCode = 200;
+  response.writeHead(statusCode, headers);
+
+  response.end(results);
 };
 
 exports.requestHandler = requestHandler;

@@ -3,6 +3,7 @@ var app = {
 
   //TODO: The current 'handleUsernameClick' function just toggles the class 'friend'
   //to all messages sent by the user
+  // server: 'http://parse.sfm6.hackreactor.com/chatterbox/classes/messages',
   server: 'http://127.0.0.1:3000/classes/messages',
   username: 'anonymous',
   roomname: '',
@@ -42,7 +43,7 @@ var app = {
     $.ajax({
       url: app.server,
       type: 'POST',
-      data: message,
+      data: JSON.stringify(message),
       success: function (data) {
         // Clear messages input
         app.$message.val('');
@@ -63,6 +64,7 @@ var app = {
       data: { order: '-createdAt' },
       contentType: 'application/json',
       success: function(data) {
+        console.log('successful get with data:', data);
         // Don't bother if we have nothing to work with
         if (!data.results || !data.results.length) { return; }
 
@@ -212,6 +214,7 @@ var app = {
   },
 
   handleSubmit: function(event) {
+    console.log('handling submit');
     var message = {
       username: app.username,
       text: app.$message.val(),
@@ -226,11 +229,11 @@ var app = {
 
   startSpinner: function() {
     $('.spinner img').show();
-    $('form input[type=submit]').attr('disabled', 'true');
+    // $('form input[type=submit]').attr('disabled', 'true');
   },
 
   stopSpinner: function() {
     $('.spinner img').fadeOut('fast');
-    $('form input[type=submit]').attr('disabled', null);
+    // $('form input[type=submit]').attr('disabled', null);
   }
 };
