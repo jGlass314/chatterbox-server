@@ -97,9 +97,13 @@ invalidEndpointHandler = (response) => {
 
 postHandler = (request, response) => {
   let body = [];
+  request.on('error', (err) => {
+    console.error(err);
+  });
   request.on('data', (chunk) => {
-    body.push(chunk);
-  }).on('end', () => {
+    body.push(Buffer(chunk));
+  });
+  request.on('end', () => {
     body = Buffer.concat(body).toString();
     // at this point, `body` has the entire request body stored in it as a string
     messages.push(JSON.parse(body));
