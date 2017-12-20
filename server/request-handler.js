@@ -11,6 +11,9 @@ this file and include it in basic-server.js so that it actually works.
 *Hint* Check out the node module documentation at http://nodejs.org/api/modules.html.
 
 **************************************************************/
+var fs = require('fs');
+var path = require('path');
+
 var messages = [];
 
 var defaultCorsHeaders = {
@@ -20,8 +23,16 @@ var defaultCorsHeaders = {
   'access-control-max-age': 10 // Seconds.
 };
 
-var endpoint = {
-  '/classes/messages': 'messages'
+var validExtensions = {
+  '.html': 'text/html',
+  '.js': 'application/javascript',
+  '.css': 'text/css',
+  '.txt': 'text/plain',
+  '.jpg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.png': 'image/png',
+  '.woff': 'application/font-woff',
+  '.woff2': 'application/font-woff2'
 };
 
 var requestHandler = function(request, response) {
@@ -48,30 +59,74 @@ var requestHandler = function(request, response) {
   //
   // You will need to change this if you are sending something
   // other than plain text, like JSON or HTML.
-  
-  switch (endpoint[request.url.split('?')[0]]) {
-  case 'messages':
+  // console.log('request.url.split(\'?\')[0]:', request.url.split('?')[0]);
+  switch (request.url.split('?')[0]) {
+  case '/classes/messages':
     handleMessages(request, response, headers);
     break;
   default:
-    defaultHandler(response, headers, 404);
+    console.log('handle static page request');
+    staticPageRequestHandler(request, response, headers, '../client', 200);
+    break;
+  // default:
+  //   defaultHandler(response, headers, 404);
   }
 };
 
 handleMessages = (request, response, headers) => {
   switch (request.method) {
   case 'POST':
-    postHandler(request, response, headers, 201);
+    postMessageHandler(request, response, headers, 201);
     break;
   case 'GET':
-    getHandler(request, response, headers, 200);
+    getMessageHandler(request, response, headers, 200);
     break;
   case 'OPTIONS':
-    defaultHandler(response, headers, 200);
+    defaultMessageHandler(response, headers, 200);
     break;
   default:
-    defaultHandler(response, headers, 405);
+    defaultMessageHandler(response, headers, 405);
   }
+};
+
+staticPageRequestHandler = (request, response, headers, basePath, statusCode) => {
+  var filename = ((request.url === '/' || request.url.includes('username')) ? '/index.html' : request.url);
+  console.log('static page request for filename:', filename);
+  var ext = path.extname(filename);
+  var mimeType = validExtensions[ext];
+  var validMimeType = validExtensions[ext] !== undefined;
+  console.log('mimeType:', mimeType);
+  
+  // check to make sure file exists and can be read from
+  fs.access(basePath + filename, fs.constants.R_OK, (err) => {
+    if (err) {
+      console.error('no access!');
+      defaultHandler(response, headers, 404);
+    }
+  });
+  
+  if (!validMimeType) {
+    console.log('Invalid file extension detected: ' + ext + ' (' + filename + ')');
+    headers['Content-Type'] = 'text/plain';
+    response.writeHead(500, headers);
+    response.end();
+    return;
+  }
+  
+  fs.readFile(basePath + filename, 'binary', function(err, file) {
+    if (err) {
+      headers['Content-Type'] = 'text/plain';
+      response.writeHead(500, headers);
+      response.end(err);
+      return;
+    }
+
+    headers['Content-Type'] = mimeType;
+    // headers['Content-Length'] = file.length;
+    response.writeHead(statusCode, headers);
+    response.write(file, 'binary');
+    response.end();
+  });  
 };
 
 // These headers will allow Cross-Origin Resource Sharing (CORS).
@@ -83,19 +138,20 @@ handleMessages = (request, response, headers) => {
 //
 // Another way to get around this restriction is to serve you chat
 // client from this domain by setting up static file serving.
-defaultHandler = (response, headers, statusCode) => {
+defaultMessageHandler = (response, headers, statusCode) => {
   response.writeHead(statusCode, headers);
+  console.log('handling defaultHandler, statusCode:', statusCode);
   response.end();
+  console.log('flush message and send');
 };
 
-getHandler = (request, response, headers, statusCode) => {
+getMessageHandler = (request, response, headers, statusCode) => {
   // The outgoing status.
   var results;
   var options = request.url.split('?')[1];
   console.log('get request url:', request.url);
   if (options && options.split('=')[1] === '-createdAt') {
     results = JSON.stringify({'results': messages.slice().reverse()});
-    // results = JSON.stringify({'results': messages});
   } else {
     results = JSON.stringify({'results': messages});
   }
@@ -111,10 +167,12 @@ getHandler = (request, response, headers, statusCode) => {
   //
   // Calling .end "flushes" the response's internal buffer, forcing
   // node to actually send all the data over to the client.
+  console.log('handling get message, statusCode:', statusCode);
   response.end(results);
+  console.log('flush message and send');
 };
 
-postHandler = (request, response, headers, statusCode) => {
+postMessageHandler = (request, response, headers, statusCode) => {
   let body = [];
   request.on('error', (err) => {
     console.error(err);
@@ -125,10 +183,9 @@ postHandler = (request, response, headers, statusCode) => {
   request.on('end', () => {
     body = Buffer.concat(body).toString();
     // at this point, `body` has the entire request body stored in it as a string
-    messages.push(JSON.parse(body));
-    
-    // See the note below about CORS headers.
-    var headers = defaultCorsHeaders;
+    var message = JSON.parse(body);
+    message['objectId'] = messages.length;
+    messages.push(message);
 
     // Tell the client we are sending them plain text.
     //

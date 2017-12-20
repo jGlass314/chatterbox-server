@@ -45,6 +45,7 @@ var app = {
       type: 'POST',
       data: JSON.stringify(message),
       success: function (data) {
+        app.stopSpinner();
         // Clear messages input
         app.$message.val('');
 
@@ -52,19 +53,22 @@ var app = {
         app.fetch();
       },
       error: function (error) {
+        app.stopSpinner();
         console.error('chatterbox: Failed to send message', error);
       }
     });
   },
 
   fetch: function(animate) {
+    app.startSpinner();
     $.ajax({
       url: app.server,
       type: 'GET',
-      data: { order: '-createdAt' },
+      // data: { order: '-createdAt' },
       contentType: 'application/json',
       success: function(data) {
         console.log('successful get with data:', data);
+        app.stopSpinner();
         // Don't bother if we have nothing to work with
         if (!data.results || !data.results.length) { return; }
 
@@ -75,6 +79,9 @@ var app = {
         var mostRecentMessage = data.results[data.results.length - 1];
 
         // Only bother updating the DOM if we have a new message
+        // console.log('mostRecentMessage.objectId', mostRecentMessage.objectId);
+        // console.log('app.lastMessageId', app.lastMessageId);
+        // console.log('mostRecentMessage', mostRecentMessage);
         if (mostRecentMessage.objectId !== app.lastMessageId) {
           // Update the UI with the fetched rooms
           app.renderRoomList(data.results);
@@ -87,6 +94,7 @@ var app = {
         }
       },
       error: function(error) {
+        app.stopSpinner();
         console.error('chatterbox: Failed to fetch messages', error);
       }
     });
@@ -98,8 +106,9 @@ var app = {
 
   renderMessages: function(messages, animate) {
     // Clear existing messages`
+    console.log('call renderMessages');
     app.clearMessages();
-    app.stopSpinner();
+    // app.stopSpinner();
     if (Array.isArray(messages)) {
       // Add all fetched messages that are in our current room
       messages
@@ -229,11 +238,11 @@ var app = {
 
   startSpinner: function() {
     $('.spinner img').show();
-    // $('form input[type=submit]').attr('disabled', 'true');
+    $('form input[type=submit]').attr('disabled', 'true');
   },
 
   stopSpinner: function() {
     $('.spinner img').fadeOut('fast');
-    // $('form input[type=submit]').attr('disabled', null);
+    $('form input[type=submit]').attr('disabled', null);
   }
 };
